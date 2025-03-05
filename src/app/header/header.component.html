@@ -14,18 +14,21 @@
     </button>
     <div class="collapse navbar-collapse" id="navbarNavDropdown">
       <ul class="navbar-nav me-auto">
-        <li routerLinkActive="active" class="nav-item">
+        <li routerLinkActive="active" class="nav-item" *ngIf="isAuthenticated">
           <a routerLink="/recipes" class="nav-link" aria-current="page">Recipes</a>
         </li>
         <li routerLinkActive="active" class="nav-item">
-          <a routerLink="/auth" class="nav-link" aria-current="page">Authenticate</a>
+          <a routerLink="/auth" class="nav-link" aria-current="page" *ngIf="!isAuthenticated">Authenticate</a>
         </li>
         <li routerLinkActive="active" class="nav-item">
           <a routerLink="/shopping-list" class="nav-link">Shopping List</a>
         </li>
       </ul>
       <ul class="navbar-nav">
-        <li class="nav-item dropdown me-4" appDropdown>
+        <li *ngIf="isAuthenticated">
+          <a style="cursor: pointer;">Logout</a>
+        </li>
+        <li class="nav-item dropdown me-4" appDropdown *ngIf="isAuthenticated">
           <a
             class="nav-link dropdown-toggle"
             style="cursor: pointer;"
