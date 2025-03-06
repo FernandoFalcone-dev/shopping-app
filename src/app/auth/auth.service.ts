@@ -1,15 +1,17 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { catchError, Observable, Subject, tap } from 'rxjs';
+import { BehaviorSubject, catchError, Observable, tap, throwError } from 'rxjs';
 import { environment } from 'src/environments/environment';
 import { User } from './user.model';
+import { Router } from '@angular/router';
 
 @Injectable({
   providedIn: 'root',
 })
 export class AuthService {
-  user = new Subject<User>();
-  constructor(private http: HttpClient) {}
+  user = new BehaviorSubject<User | null>(null);
+  tokenExpirationTimer: any;
+  constructor(private http: HttpClient, private router: Router) {}
 
   signup(email: string, password: string): Observable<AuthResponseData> {
     const API_KEY = environment.apiKey;
@@ -23,17 +25,9 @@ export class AuthService {
         }
       )
       .pipe(
-        catchError((errorRes) => {
-          let errorMessage = 'An unknown error occurred!';
-          if (!errorRes.error || !errorRes.error.error) {
-            throw new Error(errorMessage);
-          }
-          switch (errorRes.error.error.message) {
-            case 'EMAIL_EXISTS':
-              errorMessage = 'This email exists already!';
-          }
-          throw new Error(errorMessage);
-        }),
+        catchError((err) => {
+          return throwError(() => this.handleError(err));
+       }),
         tap((resData) => {
           this.handleAuthentication(resData.email, resData.localId, resData.idToken, +resData.expiresIn);
         })
@@ -52,13 +46,59 @@ export class AuthService {
         }
       )
       .pipe(
-        catchError(() => {
-          throw this.handleError;
+        catchError((err) => {
+           return throwError(() => this.handleError(err));
         }),
         tap((resData) => {
           this.handleAuthentication(resData.email, resData.localId, resData.idToken, +resData.expiresIn);
         })
       );
+  }
+
+  logout() {
+    this.user.next(null);
+    this.router.navigate(['/auth']);
+    localStorage.removeItem('userData');
+    if (this.tokenExpirationTimer) {
+      clearTimeout(this.tokenExpirationTimer);
+    }
+    this.tokenExpirationTimer = null;
+  }
+
+  autoLogout(expirationDuration: number) {
+    console.log(expirationDuration);
+    this.tokenExpirationTimer = setTimeout(() => {
+      this.logout();
+    }, expirationDuration);
+  }
+
+  autoLogin() {
+    const userDataString = localStorage.getItem('userData');
+    if (!userDataString) {
+      return;
+    }
+
+    const userData: {
+      email: string;
+      id: string;
+      _token: string;
+      _tokenExpirationDate: string;
+    } = JSON.parse(userDataString);
+
+    const loadedUser = new User(
+      userData.email,
+      userData.id,
+      userData._token,
+      new Date(userData._tokenExpirationDate)
+    );
+
+    if (loadedUser.token) {
+      this.user.next(loadedUser);
+      const expirationDuration =
+        new Date(userData._tokenExpirationDate).getTime() -
+        new Date().getTime();
+      this.autoLogout(expirationDuration);
+    }
   }
 
   private handleError(error: HttpErrorResponse) {
@@ -69,6 +109,9 @@ export class AuthService {
     switch (error.error.error.message) {
       case 'EMAIL_EXISTS':
         errorMessage = 'This email exists already!';
+        break;
+      case 'INVALID_LOGIN_CREDENTIALS':
+        errorMessage = 'Invalid login credentials!';
         break;
       case 'EMAIL_NOT_FOUND':
         errorMessage = 'This email does not exist!';
@@ -87,6 +130,8 @@ export class AuthService {
     const expirationDate = new Date(new Date().getTime() + expiresIn * 1000);
     const user = new User(email, userId, token, expirationDate);
     this.user.next(user);
+    this.autoLogout(expiresIn * 1000);
+    localStorage.setItem('userData', JSON.stringify(user));
   }
 }
 

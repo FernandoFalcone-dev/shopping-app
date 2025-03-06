@@ -7,4 +7,8 @@ export class User {
         }
         return this._token;
     }
+
+    get tokenExpirationDate() {
+        return this._tokenExpirationDate;
+    }
 }
