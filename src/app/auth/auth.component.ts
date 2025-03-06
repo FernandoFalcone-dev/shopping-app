@@ -49,4 +49,8 @@ export class AuthComponent implements OnInit {
     console.log(form.value);
     form.reset();
   }
+
+  onHandleError() {
+    this.errorMessage = null;
+  }
 }
